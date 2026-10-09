@@ -3,6 +3,8 @@ on:
   push:
     paths: ['flags_challenge/**', '.github/workflows/build-flags-challenge.yml']
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,7 +23,15 @@ jobs:
       - run: flutter pub get
       - run: flutter test
       - run: flutter build apk --release
+      - run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/flags-challenge.apk
       - uses: actions/upload-artifact@v4
         with:
           name: flags-challenge-apk
           path: flags_challenge/build/app/outputs/flutter-apk/app-release.apk
+      - name: Publish APK as a release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: flags-challenge-v${{ github.run_number }}
+          name: تحدي الأعلام - نسخة ${{ github.run_number }}
+          files: flags_challenge/build/app/outputs/flutter-apk/flags-challenge.apk

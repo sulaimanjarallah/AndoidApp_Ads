@@ -24,4 +24,4 @@
 
 ## البناء
 - على جهازك: `flutter pub get` ثم `flutter run` أو `flutter build apk`.
-- أو من GitHub: تبويب Actions ← آخر تشغيل لـ "Build Flags Challenge APK" ← نزّل ملف flags-challenge-apk.
+- أو من GitHub: صفحة Releases في المستودع، نزّل ملف flags-challenge.apk من آخر نسخة.
