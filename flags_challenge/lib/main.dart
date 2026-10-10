@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'ads/ad_manager.dart';
+import 'game/progress.dart';
 import 'screens/home_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Progress.instance.load();
   AdManager.instance.init();
   runApp(const FlagsApp());
 }

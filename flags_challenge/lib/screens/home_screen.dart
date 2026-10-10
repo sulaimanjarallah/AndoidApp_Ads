@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../ads/banner_slot.dart';
-import '../data/countries.dart';
-import '../game/quiz.dart';
-import '../game/scores.dart';
+import '../game/modes.dart';
+import '../game/progress.dart';
 import 'game_screen.dart';
+import 'levels_screen.dart';
+import 'practice_screen.dart';
+import 'widgets.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,100 +16,88 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  QuizMode _mode = QuizMode.flagToCountry;
-  Region? _region;
-  int _best = 0;
+  final _p = Progress.instance;
 
   @override
   void initState() {
     super.initState();
-    _loadBest();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_p.claimLoginBonus() && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'مكافأة الدخول اليومي: +${Progress.dailyLoginBonus} 🪙')));
+      }
+    });
   }
 
-  Future<void> _loadBest() async {
-    final best = await Scores.best(_mode);
-    if (mounted) setState(() => _best = best);
+  Future<void> _open(Widget screen) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+    if (mounted) setState(() {});
   }
 
-  Future<void> _start() async {
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => GameScreen(mode: _mode, region: _region),
-    ));
-    _loadBest();
+  Future<void> _freeCoins() async {
+    if (await watchRewardedAd(context)) {
+      _p.addCoins(Progress.adCoins);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('+${Progress.adCoins} 🪙')));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final daily = _p.dailyPlayedToday;
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('تحدي الأعلام'),
+        actions: const [CoinBadge(), SizedBox(width: 12)],
+      ),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 children: [
-                  const SizedBox(height: 12),
                   const Text('🌍', textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 72)),
-                  Text('تحدي الأعلام والعواصم',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Text('أفضل نتيجة: $_best',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: scheme.primary, fontSize: 16)),
-                  const SizedBox(height: 28),
-                  const Text('نوع التحدي',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  for (final m in QuizMode.values)
-                    Card(
-                      color: m == _mode ? scheme.primaryContainer : null,
-                      child: ListTile(
-                        leading: Text(
-                            m == QuizMode.flagToCountry ? '🏳️' : '🏛️',
-                            style: const TextStyle(fontSize: 28)),
-                        title: Text(modeNames[m]!),
-                        trailing: m == _mode
-                            ? Icon(Icons.check_circle, color: scheme.primary)
-                            : null,
-                        onTap: () {
-                          setState(() => _mode = m);
-                          _loadBest();
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-                  const Text('المنطقة',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('كل العالم'),
-                        selected: _region == null,
-                        onSelected: (_) => setState(() => _region = null),
-                      ),
-                      for (final r in Region.values)
-                        ChoiceChip(
-                          label: Text(regionNames[r]!),
-                          selected: _region == r,
-                          onSelected: (_) => setState(() => _region = r),
-                        ),
-                    ],
+                      style: TextStyle(fontSize: 64)),
+                  const SizedBox(height: 12),
+                  _ModeCard(
+                    emoji: '🗺️',
+                    title: 'المراحل',
+                    subtitle:
+                        '$levelCount مرحلة تصعب تدريجياً • ⭐ ${_p.totalStars} من ${levelCount * 3}',
+                    onTap: () => _open(const LevelsScreen()),
                   ),
-                  const SizedBox(height: 32),
-                  FilledButton.icon(
-                    onPressed: _start,
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                      child: Text('ابدأ', style: TextStyle(fontSize: 20)),
-                    ),
+                  _ModeCard(
+                    emoji: '❤️',
+                    title: 'تحدي البقاء',
+                    subtitle:
+                        '٣ محاولات وأسئلة بلا نهاية • أفضل نتيجة ${_p.best('survival')}',
+                    onTap: () => _open(GameScreen(setup: survivalSetup())),
+                  ),
+                  _ModeCard(
+                    emoji: '📅',
+                    title: 'التحدي اليومي',
+                    subtitle: daily
+                        ? 'لعبته اليوم: ${_p.dailyScore} نقطة • ارجع بكرة'
+                        : '$dailyLength سؤالاً جديداً كل يوم • +20 🪙',
+                    enabled: !daily,
+                    onTap: () =>
+                        _open(GameScreen(setup: dailySetup(DateTime.now()))),
+                  ),
+                  _ModeCard(
+                    emoji: '🎯',
+                    title: 'تدريب حر',
+                    subtitle: 'اختر نوع السؤال والمنطقة',
+                    onTap: () => _open(const PracticeScreen()),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _freeCoins,
+                    icon: const Icon(Icons.ondemand_video),
+                    label: Text('شاهد إعلاناً واربح ${Progress.adCoins} 🪙'),
                   ),
                 ],
               ),
@@ -115,6 +105,38 @@ class _HomeScreenState extends State<HomeScreen> {
             const BannerSlot(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ModeCard extends StatelessWidget {
+  final String emoji;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  const _ModeCard({
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        enabled: enabled,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Text(emoji, style: const TextStyle(fontSize: 34)),
+        title: Text(title,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_left),
+        onTap: enabled ? onTap : null,
       ),
     );
   }
